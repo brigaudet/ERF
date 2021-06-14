@@ -1,0 +1,6 @@
+CEXE_sources += BCfill.cpp
+CEXE_sources += ScalarPhysBC.cpp
+CEXE_sources += VelocityPhysBC.cpp
+
+CEXE_headers += ScalarPhysBC.H
+CEXE_headers += VelocityPhysBC.H
