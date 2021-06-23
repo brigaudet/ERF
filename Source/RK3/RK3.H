@@ -23,6 +23,8 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
                         const SolverChoice& solverChoice);
 
+//   BJG
+
 void RK3_advance(MultiFab& cons_old, MultiFab& cons_new, 
                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old, 
                  MultiFab& U_new, MultiFab& V_new, MultiFab& W_new, 
@@ -34,7 +36,8 @@ void RK3_advance(MultiFab& cons_old, MultiFab& cons_new,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
-                 const SolverChoice& solverChoice);
+                 const SolverChoice& solverChoice, const int phys_bc_lovalz, const int phys_bc_hivalz);
+
 
 void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new, 
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 

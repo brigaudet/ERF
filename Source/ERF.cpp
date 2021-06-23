@@ -84,7 +84,6 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (!lo_bc_char[dir].compare("Interior")) {
       lo_bc[dir] = 0;
-      std::cout << "DIR IS INTERIOR " << dir << std::endl;
     } else if (!lo_bc_char[dir].compare("Hard")) {
       lo_bc[dir] = 1;
     } else if (!lo_bc_char[dir].compare("FOExtrap")) {
@@ -126,6 +125,14 @@ ERF::read_params()
     phys_bc.setLo(dir, lo_bc[dir]);
     phys_bc.setHi(dir, hi_bc[dir]);
   }
+
+
+
+  /*  BJG */
+
+  // amrex::Print() << "phys_bc.lo(0,1,2) in ERF:  " << phys_bc.lo(0) << " " << phys_bc.lo(1) << " " << phys_bc.lo(2) << std::endl;
+
+
 
   //
   // Check phys_bc against possible periodic geometry
