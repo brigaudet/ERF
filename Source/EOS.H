@@ -19,13 +19,12 @@ amrex::Real getPgivenRTh(amrex::Real rhotheta)
     return p_0 * std::pow(R_d * rhotheta / p_0, Gamma);
 }
 
-//   BJG  //
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE 
-amrex::Real getRThgivenP(amrex::Real p) 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getRhoThetagivenP(amrex::Real p)
 {
     // diagnostic relation for the full pressure
     // see https://erf.readthedocs.io/en/latest/Euler_Equations.html
-    return p_0 * std::pow(p / p_0, 1.0/Gamma) / R_d;
+    return std::pow(p*std::pow(p_0, Gamma-1), 1.0 / Gamma)/ R_d;
 }
 #endif

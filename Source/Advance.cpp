@@ -313,7 +313,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        Real rhotheta = cu(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
-       cu(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -325,7 +325,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        Real rhotheta = cu(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
-       cu(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -348,7 +348,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        Real rhotheta = cu(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
-       cu(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -361,7 +361,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        Real rhotheta = cu(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
-       cu(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -431,7 +431,11 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   cenflux[2].define(ba,dmap,1,1);
 
   // TODO: Better make it a member of the ERF class. Need to deal with static stuff.
-  SolverChoice solverChoice(use_advection, use_diffusion, use_smagorinsky, use_gravity, spatial_order);
+   SolverChoice solverChoice(use_state_advection, use_momentum_advection,
+                             use_thermal_diffusion, alpha_T,
+                             use_scalar_diffusion, alpha_S,
+                             use_momentum_diffusion, kinematicViscosity,
+                             use_smagorinsky, use_pressure, use_gravity, spatial_order);
   //solverChoice.display();
 
   // *****************************************************************

@@ -160,7 +160,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_old(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,0,Rho_comp) + cu_old(i,j,-1,Rho_comp)) + pressure; 
-       cu_old(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_old(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -172,7 +172,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_old(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,0,Rho_comp) + cu_old(i,j,-1,Rho_comp)) + pressure; 
-       cu_old(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_old(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -196,7 +196,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_old(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,nz+1,Rho_comp) + cu_old(i,j,nz,Rho_comp)) + pressure; 
-       cu_old(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_old(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -209,7 +209,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_old(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,nz+1,Rho_comp) + cu_old(i,j,nz,Rho_comp)) + pressure; 
-       cu_old(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_old(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
            
@@ -522,7 +522,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up1(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
-       cu_up1(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_up1(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -534,7 +534,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up1(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
-       cu_up1(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_up1(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -558,7 +558,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up1(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
-       cu_up1(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_up1(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -571,7 +571,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up1(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
-       cu_up1(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_up1(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
            
@@ -849,7 +849,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up2(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
-       cu_up2(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_up2(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -861,7 +861,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up2(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
-       cu_up2(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_up2(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
       /*  FOExtrap at high end of z direction, apply to all conserved scalars */
@@ -884,7 +884,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up2(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
-       cu_up2(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_up2(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -897,7 +897,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_up2(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
-       cu_up2(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_up2(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -1129,13 +1129,11 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // PKJ comments: Even after applying BC on *mom_new, no noticeable difference in flow data was observed
     // Apply BC on updated momentum data on faces after stage 3 and before going to next time step
     // **************************************************************************************
-    // BJG -- applying below for consistency at moment after all
-
+    ///*
     xmom_new.FillBoundary(geom.periodicity());
     ymom_new.FillBoundary(geom.periodicity());
     zmom_new.FillBoundary(geom.periodicity());
-
-
+    //*/
 
     // Apply BC on updated state data at cells after stage 3 and before going to next time step
     // **************************************************************************************
@@ -1180,7 +1178,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_new(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
-       cu_new(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_new(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -1192,7 +1190,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_new(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
-       cu_new(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+       cu_new(i,j,-1,RhoTheta_comp) = getRhoThetagivenP(pressurem1);
       }
 
 
@@ -1216,7 +1214,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_new(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
-       cu_new(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_new(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
@@ -1229,7 +1227,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        Real rhotheta = cu_new(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
        Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
-       cu_new(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       cu_new(i,j,nz+1,RhoTheta_comp) = getRhoThetagivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
 
