@@ -98,6 +98,13 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
     amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
 
+      /*  FOExtrap at low end of z direction */
+
+      if( phys_bc.lo(2) == 2 ) {
+	uarray(i,j,-1,0) = uarray(i,j,0,0);
+      }
+
+
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
 
@@ -112,6 +119,12 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
 
       if ( phys_bc.lo(2) == 5 ) {
 	uarray(i,j,-1,0) = -uarray(i,j,0,0);
+      }
+
+      /*  FOExtrap at high end of z direction */
+
+      if( phys_bc.hi(2) == 2 ) {
+	uarray(i,j,nz+1,0) = uarray(i,j,nz,0);
       }
 
       /* Slip Wall at high end of z direction */
@@ -144,6 +157,12 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
     {
 
 
+      /*  FOExtrap at low end of z direction */
+
+      if( phys_bc.lo(2) == 2 ) {
+	varray(i,j,-1,0) = varray(i,j,0,0);
+      }
+
       /* NoSlipWall at low end of z direction
       For now, we will do the below method of appying the condition on the z-face.
       Thus the average of ghost cell value and lower bound value should be zero, instead of ghost cell value being zero.
@@ -152,6 +171,13 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
       if ( phys_bc.lo(2) == 5 ) {
 	varray(i,j,-1,0) = -varray(i,j,0,0);
       }
+
+      /*  FOExtrap at high end of z direction */
+
+      if( phys_bc.hi(2) == 2 ) {
+	varray(i,j,nz+1,0) = varray(i,j,nz,0);
+      }
+
 
       /* Slip Wall at high end of z direction */
 
@@ -187,6 +213,13 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
     amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
 
+      /*  FOExtrap at low end of z direction */
+
+      if( phys_bc.lo(2) == 2 ) {
+	warray(i,j,-1,0) = warray(i,j,0,0);
+      }
+
+
       /* SlipWall at low end of z direction
       For w, directly set value at lowest index to zero.  
       Set value at ghost point to negative of second lowest index, to prevent
@@ -208,6 +241,14 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
 
 
       /*  In z direction, warray has one more index than scalars */
+
+
+      /*  FOExtrap at high end of z direction */
+
+      if( phys_bc.hi(2) == 2 ) {
+	warray(i,j,nz+2,0) = warray(i,j,nz+1,0);
+      }
+
 
       if ( phys_bc.hi(2) == 4 ) {
 	warray(i,j,nz+1,0) = 0.0;
@@ -234,8 +275,10 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
                        /* TODO:  for inhomogeneous Neumann case dx should be dz. */
 
  Real gravity = use_gravity? CONST_GRAV: 0.0;
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
+ // CONST_GRAV is positive, but grav is assumed to be negative in equations below BJG
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+    amrex::Print() << "grav_gpu[2]:  " << grav_gpu[2] << std::endl;
 
  for ( MFIter mfi(S_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         
@@ -250,6 +293,16 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
 
+      /*  FOExtrap at low end of z direction, apply to all conserved scalars */
+
+      if( phys_bc.lo(2) == 2 ) {
+       cu(i,j,-1,RhoScalar_comp) = cu(i,j,0,RhoScalar_comp);
+       cu(i,j,-1,Rho_comp) =  cu(i,j,0,Rho_comp);
+       cu(i,j,-1,RhoTheta_comp) = cu(i,j,0,RhoTheta_comp);
+      }
+
+
+
       /*  NoSlipWall and SlipWall have the same scalar boundary conditions */
 
       if ( phys_bc.lo(2) == 4 ) {
@@ -259,8 +312,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        cu(i,j,-1,Rho_comp) = 0.0*(*dx) + cu(i,j,0,Rho_comp);
        Real rhotheta = cu(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurem1 =  ( grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
-       // Real pressurem1 =  ( 0.0 * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
        cu(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
 
@@ -272,10 +324,19 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        cu(i,j,-1,Rho_comp) = 0.0*(*dx) + cu(i,j,0,Rho_comp);
        Real rhotheta = cu(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurem1 =  ( grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
-       //Real pressurem1 =  ( 0.0 * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,0,Rho_comp) + cu(i,j,-1,Rho_comp)) + pressure; 
        cu(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
+
+
+      /*  FOExtrap at high end of z direction, apply to all conserved scalars */
+
+      if( phys_bc.lo(2) == 2 ) {
+       cu(i,j,nz+1,RhoScalar_comp) = cu(i,j,nz,RhoScalar_comp);
+       cu(i,j,nz+1,Rho_comp) =  cu(i,j,nz,Rho_comp);
+       cu(i,j,nz+1,RhoTheta_comp) = cu(i,j,nz,RhoTheta_comp);
+      }
+
 
 
 
@@ -286,8 +347,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        cu(i,j,nz+1,Rho_comp) = 0.0*(*dx) + cu(i,j,nz,Rho_comp);
        Real rhotheta = cu(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
-       // Real pressurep1 =  -( 0.00 * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
        cu(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -300,8 +360,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
        cu(i,j,nz+1,Rho_comp) = 0.0*(*dx) + cu(i,j,nz,Rho_comp);
        Real rhotheta = cu(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
-       // Real pressurep1 =  -( 0.00 * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarray[2] / 2.0 ) * (cu(i,j,nz+1,Rho_comp) + cu(i,j,nz,Rho_comp)) + pressure; 
        cu(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }

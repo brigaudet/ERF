@@ -9,6 +9,7 @@
 /*  BJG */
 #include "EOS.H"
 #include "IndexDefines.H"
+#include "Constants.H"
 
 using namespace amrex;
 
@@ -104,6 +105,274 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 //    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
 
+// Apply BCs to momentum fields just calculated before first call to RK3 stage  BJG
+
+
+    const auto dxarr = geom.CellSizeArray();
+    int nx = geom.Domain().bigEnd(0);
+    int ny = geom.Domain().bigEnd(1);
+    int nz = geom.Domain().bigEnd(2);
+
+    Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
+    // CONST_GRAV is positive, but assumed negative in grav for equations below   BJG
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
+    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+    amrex::Print() << "grav_gpu[2] in RK3_driver:  " << grav_gpu[2]  << std::endl;    
+
+
+
+
+
+    for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        const Box& bx = mfi.tilebox();
+        const Box& tbx = mfi.nodaltilebox(0);
+        const Box& tby = mfi.nodaltilebox(1);
+        const Box& tbz = mfi.nodaltilebox(2);
+
+	const Array4<Real> & cu_old     = cons_old.array(mfi); 
+        const Array4<Real>& momx_old = xmom_old.array(mfi);
+        const Array4<Real>& momy_old = ymom_old.array(mfi);
+        const Array4<Real>& momz_old = zmom_old.array(mfi);
+
+
+        amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+
+      /*  FOExtrap at low end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_lovalz == 2 ) {
+
+       cu_old(i,j,-1,RhoScalar_comp) = cu_old(i,j,0,RhoScalar_comp);
+       cu_old(i,j,-1,Rho_comp) = cu_old(i,j,0,Rho_comp);
+       cu_old(i,j,-1,RhoTheta_comp) = cu_old(i,j,0,RhoTheta_comp);
+
+      }
+
+
+      /*  NoSlipWall and SlipWall have the same scalar boundary conditions */
+
+      if ( phys_bc_lovalz == 4 ) {
+
+      // Neumann
+       cu_old(i,j,-1,RhoScalar_comp) = cu_old(i,j,0,RhoScalar_comp);
+       cu_old(i,j,-1,Rho_comp) = cu_old(i,j,0,Rho_comp);
+       Real rhotheta = cu_old(i,j,0,RhoTheta_comp);
+       Real pressure = getPgivenRTh(rhotheta);
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,0,Rho_comp) + cu_old(i,j,-1,Rho_comp)) + pressure; 
+       cu_old(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+      }
+
+
+      if ( phys_bc_lovalz == 5 ) {
+
+      // Neumann
+       cu_old(i,j,-1,RhoScalar_comp) = cu_old(i,j,0,RhoScalar_comp);
+       cu_old(i,j,-1,Rho_comp) =  cu_old(i,j,0,Rho_comp);
+       Real rhotheta = cu_old(i,j,0,RhoTheta_comp);
+       Real pressure = getPgivenRTh(rhotheta);
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,0,Rho_comp) + cu_old(i,j,-1,Rho_comp)) + pressure; 
+       cu_old(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
+      }
+
+
+      /*  FOExtrap at high end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_hivalz == 2 ) {
+
+       cu_old(i,j,nz+1,RhoScalar_comp) = cu_old(i,j,nz,RhoScalar_comp);
+       cu_old(i,j,nz+1,Rho_comp) = cu_old(i,j,nz,Rho_comp);
+       cu_old(i,j,nz+1,RhoTheta_comp) = cu_old(i,j,nz,RhoTheta_comp);
+
+      }
+
+
+
+      if ( phys_bc_hivalz == 4 ) {
+
+      // Neumann
+       cu_old(i,j,nz+1,RhoScalar_comp) = cu_old(i,j,nz,RhoScalar_comp);
+       cu_old(i,j,nz+1,Rho_comp) = cu_old(i,j,nz,Rho_comp);
+       Real rhotheta = cu_old(i,j,nz,RhoTheta_comp);
+       Real pressure = getPgivenRTh(rhotheta);
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,nz+1,Rho_comp) + cu_old(i,j,nz,Rho_comp)) + pressure; 
+       cu_old(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
+      }
+
+
+      if ( phys_bc_hivalz == 5 ) {
+
+      // Neumann
+       cu_old(i,j,nz+1,RhoScalar_comp) = cu_old(i,j,nz,RhoScalar_comp);
+       cu_old(i,j,nz+1,Rho_comp) = cu_old(i,j,nz,Rho_comp);
+       Real rhotheta = cu_old(i,j,nz,RhoTheta_comp);
+       Real pressure = getPgivenRTh(rhotheta);
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_old(i,j,nz+1,Rho_comp) + cu_old(i,j,nz,Rho_comp)) + pressure; 
+       cu_old(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
+       //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
+      }
+           
+        });
+
+
+
+
+        // momentum flux
+        amrex::ParallelFor(tbx, tby, tbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momx_old(i,j,-1) = momx_old(i,j,0);
+      }
+
+
+      /* SlipWall at low end of z direction
+      Ghost cell value equals that at low end of domain    */
+
+      if( phys_bc_lovalz == 4 ) {
+	momx_old(i,j,-1) = momx_old(i,j,0);
+      }
+
+      /* NoSlipWall at low end of z direction
+      For now, we will do the below method of appying the condition on the z-face.
+      Thus the average of ghost cell value and lower bound value should be zero, instead of ghost cell value being zero.
+      Hopefully this will be OK   */
+
+      if ( phys_bc_lovalz == 5 ) {
+	momx_old(i,j,-1) = -momx_old(i,j,0);
+      }
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momx_old(i,j,nz+1) = momx_old(i,j,nz);
+      }
+
+
+      /* Slip Wall at high end of z direction */
+
+      if ( phys_bc_hivalz == 4 ) {
+	momx_old(i,j,nz+1) = momx_old(i,j,nz);
+      }
+
+      /* NoSlip Wall at high end of z direction */
+
+      if ( phys_bc_hivalz == 5 ) {
+	momx_old(i,j,nz+1) = -momx_old(i,j,nz);
+      }
+
+			   },
+
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momy_old(i,j,-1) = momy_old(i,j,0);
+      }
+
+
+      /* SlipWall at low end of z direction
+      Ghost cell value equals that at low end of domain    */
+
+      if( phys_bc_lovalz == 4 ) {
+	momy_old(i,j,-1) = momy_old(i,j,0);
+      }
+
+      /* NoSlipWall at low end of z direction
+      For now, we will do the below method of appying the condition on the z-face.
+      Thus the average of ghost cell value and lower bound value should be zero, instead of ghost cell value being zero.
+      Hopefully this will be OK   */
+
+      if ( phys_bc_lovalz == 5 ) {
+	momy_old(i,j,-1) = -momy_old(i,j,0);
+      }
+
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momy_old(i,j,nz+1) = momy_old(i,j,nz);
+      }
+
+
+      /* Slip Wall at high end of z direction */
+
+      if ( phys_bc_hivalz == 4 ) {
+	momy_old(i,j,nz+1) = momy_old(i,j,nz);
+      }
+
+      /* NoSlip Wall at high end of z direction */
+
+      if ( phys_bc_hivalz == 5 ) {
+	momy_old(i,j,nz+1) = -momy_old(i,j,nz);
+      }
+
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momz_old(i,j,-1) = momz_old(i,j,0);
+      }
+
+
+      /* SlipWall at low end of z direction
+      For w, directly set value at lowest index to zero.  
+      Set value at ghost point to negative of second lowest index, to prevent
+      forcing on w at the lower boundary from viscous diffusion   */   
+
+      if ( phys_bc_lovalz == 4 ) {
+	momz_old(i,j,0) = 0.0;
+        momz_old(i,j,-1) = -momz_old(i,j,1);
+      }
+
+
+      /* NoSlipWall at low end of z direction
+	 Same as SlipWall for momz */
+
+      if ( phys_bc_lovalz == 5 ) {
+	momz_old(i,j,0) = 0.0;
+        momz_old(i,j,-1) = -momz_old(i,j,1);
+      }
+
+
+      /*  In z direction, momz has one more index than scalars */
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momz_old(i,j,nz+2) = momz_old(i,j,nz+1);
+      }
+
+
+      if ( phys_bc_hivalz == 4 ) {
+	momz_old(i,j,nz+1) = 0.0;
+        momz_old(i,j,nz+2) = -momz_old(i,j,nz);
+      }
+
+      if ( phys_bc_hivalz == 5 ) {
+	momz_old(i,j,nz+1,0) = 0.0;
+        momz_old(i,j,nz+2) = -momz_old(i,j,nz);
+      }
+
+        });
+    }
+
+
+
+
+
+
+
+
+
 
 // BJG below, for print purposes
 
@@ -118,7 +387,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         {
             // At this point, the update is stored in cu_up1 ... 
 
-	  //	  amrex::Print() << "cu_old_test, cu_up1:  " << cu_old_test(i,j,-1,1) << " " << cu_up1_test(i,j,-1,1) << std::endl;
+	  //	  	  amrex::Print() << "cu_old_test(50,50,nz,1), cu_old_test(50,50,nz+1,1):  " << cu_old_test(50,50,nz,1) << " " << cu_old_test(50,50,nz+1,1) << std::endl;
 
             // Now cu_up1 holds the first intermediate solution
         });
@@ -171,14 +440,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
 	  //BJG, for print purposes
 
-	  //	  amrex::Print() << "cu_old, cu_up1:  " << cu_old(i,j,-1,1) << " " << cu_up1(i,j,-1,1) << std::endl;
+	  //	    amrex::Print() << "cu_old, cu_up1:  " << cu_old(50,50,nz,1) << " " << cu_up1(50,50,nz,1) << std::endl;
 
             cu_up1(i,j,k,n) += cu_old(i,j,k,n);
             // Now cu_up1 holds the first intermediate solution
 
 	    //BJG below, for print purposes
 
-	    //	  amrex::Print() << "cu_old, cu_up1 v2:  " << cu_old(i,j,-1,1) << " " << cu_up1(i,j,-1,1) << std::endl;
+	    //   amrex::Print() << "cu_old, cu_up1 v2:  " << cu_old(50,50,nz,1) << " " << cu_up1(50,50,nz,1) << std::endl;
 
         });
 
@@ -213,10 +482,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // BJG -- apply BCs below
    
-    const auto dxarr = geom.CellSizeArray();
-    int nx = geom.Domain().bigEnd(0);
-    int ny = geom.Domain().bigEnd(1);
-    int nz = geom.Domain().bigEnd(2);
+
 
 
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -235,6 +501,17 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
 
+      /*  FOExtrap at low end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_lovalz == 2 ) {
+
+       cu_up1(i,j,-1,RhoScalar_comp) = cu_up1(i,j,0,RhoScalar_comp);
+       cu_up1(i,j,-1,Rho_comp) = cu_up1(i,j,0,Rho_comp);
+       cu_up1(i,j,-1,RhoTheta_comp) = cu_up1(i,j,0,RhoTheta_comp);
+
+      }
+
+
       /*  NoSlipWall and SlipWall have the same scalar boundary conditions */
 
       if ( phys_bc_lovalz == 4 ) {
@@ -244,8 +521,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up1(i,j,-1,Rho_comp) = cu_up1(i,j,0,Rho_comp);
        Real rhotheta = cu_up1(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-              Real pressurem1 =  ( 9.81 * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
-       //Real pressurem1 =  ( 0.0 * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
        cu_up1(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
 
@@ -257,10 +533,21 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up1(i,j,-1,Rho_comp) =  cu_up1(i,j,0,Rho_comp);
        Real rhotheta = cu_up1(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-              Real pressurem1 =  ( 9.81 * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
-	      //Real pressurem1 =  ( 0.0 * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,0,Rho_comp) + cu_up1(i,j,-1,Rho_comp)) + pressure; 
        cu_up1(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
+
+
+      /*  FOExtrap at high end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_hivalz == 2 ) {
+
+       cu_up1(i,j,nz+1,RhoScalar_comp) = cu_up1(i,j,nz,RhoScalar_comp);
+       cu_up1(i,j,nz+1,Rho_comp) = cu_up1(i,j,nz,Rho_comp);
+       cu_up1(i,j,nz+1,RhoTheta_comp) = cu_up1(i,j,nz,RhoTheta_comp);
+
+      }
+
 
 
       if ( phys_bc_hivalz == 4 ) {
@@ -270,8 +557,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up1(i,j,nz+1,Rho_comp) = cu_up1(i,j,nz,Rho_comp);
        Real rhotheta = cu_up1(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
-       ///Real pressurep1 =  -( 0.00 * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
        cu_up1(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -284,8 +570,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up1(i,j,nz+1,Rho_comp) = cu_up1(i,j,nz,Rho_comp);
        Real rhotheta = cu_up1(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
-       ///Real pressurep1 =  -( 0.00 * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up1(i,j,nz+1,Rho_comp) + cu_up1(i,j,nz,Rho_comp)) + pressure; 
        cu_up1(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -295,6 +580,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momx_up1(i,j,-1) = momx_up1(i,j,0);
+      }
+
 
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
@@ -312,6 +605,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 	momx_up1(i,j,-1) = -momx_up1(i,j,0);
       }
 
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momx_up1(i,j,nz+1) = momx_up1(i,j,nz);
+      }
+
+
       /* Slip Wall at high end of z direction */
 
       if ( phys_bc_hivalz == 4 ) {
@@ -327,6 +627,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 			   },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momy_up1(i,j,-1) = momy_up1(i,j,0);
+      }
+
 
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
@@ -344,6 +652,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 	momy_up1(i,j,-1) = -momy_up1(i,j,0);
       }
 
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momy_up1(i,j,nz+1) = momy_up1(i,j,nz);
+      }
+
+
       /* Slip Wall at high end of z direction */
 
       if ( phys_bc_hivalz == 4 ) {
@@ -358,6 +674,12 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momz_up1(i,j,-1) = momz_up1(i,j,0);
+      }
 
 
       /* SlipWall at low end of z direction
@@ -381,6 +703,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
 
       /*  In z direction, momz has one more index than scalars */
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momz_up1(i,j,nz+2) = momz_up1(i,j,nz+1);
+      }
+
 
       if ( phys_bc_hivalz == 4 ) {
 	momz_up1(i,j,nz+1) = 0.0;
@@ -500,6 +829,16 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
 
+      /*  FOExtrap at low end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_lovalz == 2 ) {
+
+       cu_up2(i,j,-1,RhoScalar_comp) = cu_up2(i,j,0,RhoScalar_comp);
+       cu_up2(i,j,-1,Rho_comp) = cu_up2(i,j,0,Rho_comp);
+       cu_up2(i,j,-1,RhoTheta_comp) = cu_up2(i,j,0,RhoTheta_comp);
+
+      }
+
       /*  NoSlipWall and SlipWall have the same scalar boundary conditions */
 
       if ( phys_bc_lovalz == 4 ) {
@@ -509,8 +848,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up2(i,j,-1,Rho_comp) = cu_up2(i,j,0,Rho_comp);
        Real rhotheta = cu_up2(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurem1 =  ( 9.81 * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
-       //Real pressurem1 =  ( 0.0 * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
        cu_up2(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
 
@@ -522,10 +860,20 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up2(i,j,-1,Rho_comp) =  cu_up2(i,j,0,Rho_comp);
        Real rhotheta = cu_up2(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurem1 =  ( 9.81 * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
-       //Real pressurem1 =  ( 0.0 * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,0,Rho_comp) + cu_up2(i,j,-1,Rho_comp)) + pressure; 
        cu_up2(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
+
+      /*  FOExtrap at high end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_hivalz == 2 ) {
+
+       cu_up2(i,j,nz+1,RhoScalar_comp) = cu_up2(i,j,nz,RhoScalar_comp);
+       cu_up2(i,j,nz+1,Rho_comp) = cu_up2(i,j,nz,Rho_comp);
+       cu_up2(i,j,nz+1,RhoTheta_comp) = cu_up2(i,j,nz,RhoTheta_comp);
+
+      }
+
 
 
       if ( phys_bc_hivalz == 4 ) {
@@ -535,8 +883,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up2(i,j,nz+1,Rho_comp) = cu_up2(i,j,nz,Rho_comp);
        Real rhotheta = cu_up2(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
-       //Real pressurep1 =  -( 0.00 * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
        cu_up2(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -549,8 +896,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_up2(i,j,nz+1,Rho_comp) = cu_up2(i,j,nz,Rho_comp);
        Real rhotheta = cu_up2(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
-       // Real pressurep1 =  -( 0.00 * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_up2(i,j,nz+1,Rho_comp) + cu_up2(i,j,nz,Rho_comp)) + pressure; 
        cu_up2(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -560,6 +906,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momx_up2(i,j,-1) = momx_up2(i,j,0);
+      }
+
+
 
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
@@ -575,6 +929,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
       if ( phys_bc_lovalz == 5 ) {
 	momx_up2(i,j,-1) = -momx_up2(i,j,0);
+      }
+
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+       momx_up2(i,j,nz+1) = momx_up2(i,j,nz);
       }
 
       /* Slip Wall at high end of z direction */
@@ -593,6 +954,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+       momy_up2(i,j,-1) = momy_up2(i,j,0);
+      }
+
+
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
 
@@ -609,6 +978,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 	momy_up2(i,j,-1) = -momy_up2(i,j,0);
       }
 
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+	momy_up2(i,j,nz+1) = momy_up2(i,j,nz);
+      }
+
+
       /* Slip Wall at high end of z direction */
 
       if ( phys_bc_hivalz == 4 ) {
@@ -624,6 +1000,11 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+	momz_up2(i,j,-1) = momz_up2(i,j,0);
+      }
 
       /* SlipWall at low end of z direction
       For w, directly set value at lowest index to zero.  
@@ -646,6 +1027,12 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
 
       /*  In z direction, momz has one more index than scalars */
+
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+	momz_up2(i,j,nz+2) = momz_up2(i,j,nz+1);
+      }
 
       if ( phys_bc_hivalz == 4 ) {
 	momz_up2(i,j,nz+1) = 0.0;
@@ -772,6 +1159,17 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
 
+
+      /*  FOExtrap at low end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_lovalz == 2 ) {
+
+       cu_new(i,j,-1,RhoScalar_comp) = cu_new(i,j,0,RhoScalar_comp);
+       cu_new(i,j,-1,Rho_comp) = cu_new(i,j,0,Rho_comp);
+       cu_new(i,j,-1,RhoTheta_comp) = cu_new(i,j,0,RhoTheta_comp);
+
+      }
+
       /*  NoSlipWall and SlipWall have the same scalar boundary conditions */
 
       if ( phys_bc_lovalz == 4 ) {
@@ -781,8 +1179,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_new(i,j,-1,Rho_comp) = cu_new(i,j,0,Rho_comp);
        Real rhotheta = cu_new(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurem1 =  ( 9.81 * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
-       // Real pressurem1 =  ( 0.0 * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
        cu_new(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
 
@@ -794,10 +1191,21 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_new(i,j,-1,Rho_comp) =  cu_new(i,j,0,Rho_comp);
        Real rhotheta = cu_new(i,j,0,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurem1 =  ( 9.81 * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
-       // Real pressurem1 =  ( 0.0 * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
+       Real pressurem1 =  ( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,0,Rho_comp) + cu_new(i,j,-1,Rho_comp)) + pressure; 
        cu_new(i,j,-1,RhoTheta_comp) = getRThgivenP(pressurem1);
       }
+
+
+      /*  FOExtrap at high end of z direction, apply to all conserved scalars */
+
+      if ( phys_bc_hivalz == 2 ) {
+
+       cu_new(i,j,nz+1,RhoScalar_comp) = cu_new(i,j,nz,RhoScalar_comp);
+       cu_new(i,j,nz+1,Rho_comp) = cu_new(i,j,nz,Rho_comp);
+       cu_new(i,j,nz+1,RhoTheta_comp) = cu_new(i,j,nz,RhoTheta_comp);
+
+      }
+
 
 
       if ( phys_bc_hivalz == 4 ) {
@@ -807,8 +1215,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_new(i,j,nz+1,Rho_comp) = cu_new(i,j,nz,Rho_comp);
        Real rhotheta = cu_new(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
-       // Real pressurep1 =  -( 0.00 * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
        cu_new(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -821,8 +1228,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
        cu_new(i,j,nz+1,Rho_comp) = cu_new(i,j,nz,Rho_comp);
        Real rhotheta = cu_new(i,j,nz,RhoTheta_comp);
        Real pressure = getPgivenRTh(rhotheta);
-       Real pressurep1 =  -( 9.81 * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
-       // Real pressurep1 =  -( 0.00 * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
+       Real pressurep1 =  -( -grav_gpu[2] * dxarr[2] / 2.0 ) * (cu_new(i,j,nz+1,Rho_comp) + cu_new(i,j,nz,Rho_comp)) + pressure; 
        cu_new(i,j,nz+1,RhoTheta_comp) = getRThgivenP(pressurep1);
        //    amrex::Print() << "scalar,rho,rhotheta:  " << cu(i,j,nz+1,RhoScalar_comp) << " " << cu(i,j,nz+1,Rho_comp) << " " << cu(i,j,nz+1,RhoTheta_comp) << std::endl;    
       }
@@ -834,6 +1240,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+	momx_new(i,j,-1) = momx_new(i,j,0);
+      }
+
+
 
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
@@ -851,6 +1265,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 	momx_new(i,j,-1) = -momx_new(i,j,0);
       }
 
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+	momx_new(i,j,nz+1) = momx_new(i,j,nz);
+      }
+
+
+
       /* Slip Wall at high end of z direction */
 
       if ( phys_bc_hivalz == 4 ) {
@@ -866,6 +1288,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 			   },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+	momy_new(i,j,-1) = momy_new(i,j,0);
+      
+     }
 
       /* SlipWall at low end of z direction
       Ghost cell value equals that at low end of domain    */
@@ -883,6 +1312,15 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 	momy_new(i,j,-1) = -momy_new(i,j,0);
       }
 
+      /*  FOExtrap at high end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+	momy_new(i,j,nz+1) = momy_new(i,j,nz);
+      
+     }
+
+
+
       /* Slip Wall at high end of z direction */
 
       if ( phys_bc_hivalz == 4 ) {
@@ -898,6 +1336,12 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 	},
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_lovalz == 2 ) {
+	momz_new(i,j,-1) = momz_new(i,j,0);
+      
+     }
 
       /* SlipWall at low end of z direction
       For w, directly set value at lowest index to zero.  
@@ -920,6 +1364,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
 
       /*  In z direction, momz has one more index than scalars */
+
+      /*  FOExtrap at low end of z direction */
+
+      if ( phys_bc_hivalz == 2 ) {
+	momz_new(i,j,nz+2) = momz_new(i,j,nz+1);
+      
+     }
+
 
       if ( phys_bc_hivalz == 4 ) {
 	momz_new(i,j,nz+1) = 0.0;
